@@ -37,6 +37,7 @@ ruby_block 'sync certificates' do
     FileUtils.mkdir_p(certs_dir)
     FileUtils.cp_r(Dir["/etc/ssl/certs/*.pem"], certs_dir)
   end
+  action :nothing
   subscribes :run, 'execute[compile_openssl_source]', :immediately
 end
 
