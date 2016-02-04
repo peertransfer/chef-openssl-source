@@ -5,20 +5,24 @@ openssl_version = node['openssl_source']['openssl']['version']
 src_dirpath = "#{Chef::Config['file_cache_path']}/openssl-#{openssl_version}"
 src_filepath = "#{src_dirpath}.tar.gz"
 
+prefix_dir = node['openssl_source']['openssl']['prefix']
+
 remote_file src_filepath do
   source   node['openssl_source']['openssl']['url']
   checksum node['openssl_source']['openssl']['checksum']
   path     src_filepath
   backup   false
+  not_if { ::File.directory?(prefix_dir) && `#{prefix_dir}/bin/openssl version`.match(/#{openssl_version}/) }
 end
 
 execute 'unarchive_openssl' do
   cwd     ::File.dirname(src_filepath)
   command "tar zxf #{::File.basename(src_filepath)} -C #{::File.dirname(src_filepath)}"
   not_if  { ::File.directory?(src_dirpath) }
+  action :nothing
+  subscribes :run, "remote_file[#{src_filepath}]", :immediately
 end
 
-prefix_dir = node['openssl_source']['openssl']['prefix']
 configure_flags = node['openssl_source']['openssl']['configure_flags'].dup
 configure_flags << "--prefix=#{prefix_dir}"
 
@@ -27,10 +31,11 @@ execute 'compile_openssl_source' do
   command <<-EOH
     ./config #{configure_flags.join(' ')} && make && make install
   EOH
-  not_if { ::File.directory?(prefix_dir) && `#{prefix_dir}/bin/openssl version`.match(/#{openssl_version}/) }
+  action :nothing
+  subscribes :run, 'execute[unarchive_openssl]', :immediately
 end
 
-certs_dir = File.join(node['openssl_source']['openssl']['prefix'], 'ssl', 'certs')
+certs_dir = File.join(prefix_dir, 'ssl', 'certs')
 
 ruby_block 'sync certificates' do
   block do
